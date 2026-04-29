@@ -19,7 +19,7 @@ errors,...).
 ## Asterix sample generator and reference decoder
 
 A simple (random) sample generator is possible using
-[ast-tool-py](https://pypi.org/project/ast-tool-py/) tool.
+[ast-tool-py](https://pypi.org/project/ast-tool-py/).
 
 ```bash
 # save some samples to a file
@@ -66,4 +66,10 @@ result shall be in range `[0..255]`).
 
 Return number of 'spare' bits abuses. That is: number of times that spare bits
 are not zero.
+
+## Implementations
+
+The `/implementations` folder contains solutions for the examples. Each
+individual subfolder also contains the `README.md` file with the instructions
+how to run programs.
 

@@ -1,0 +1,12 @@
+{
+  "url": "https://github.com/zoranbosnjak/asterix-tool.git",
+  "rev": "da5bc5eb9b9c5f9f2a2c8316818ad25c9f8f8139",
+  "date": "2026-04-26T05:32:07Z",
+  "path": "/nix/store/iqsg4lp9k7yl13jf6r06mz1b5pakvqnj-asterix-tool",
+  "sha256": "0cr2ich7zghnw5lpi1mln3am5j27zvgsh890wlv9f2cz3llqj089",
+  "hash": "sha256-CQGJKR2fCZc25SAhqN/+R8hS1bC0hnhp4Ra+fyCLIjM=",
+  "fetchLFS": false,
+  "fetchSubmodules": false,
+  "deepClone": false,
+  "leaveDotGit": false
+}
