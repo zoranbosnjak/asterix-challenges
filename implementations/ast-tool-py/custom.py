@@ -1,7 +1,24 @@
 # file: custom.py
-class Accumulator:
-    def __init__(self): self.val = 0
-    def bump(self, val): self.val = (self.val + val) % 256
+
+def example02(base, gen, io, args):
+    cnt = 0
+    for event in io.rx():
+        (t_mono, t_utc, channel, data) = event
+        bits = base.Bits.from_bytes(data)
+        raw_datablocks = base.RawDatablock.parse(bits)
+        if not isinstance(raw_datablocks, ValueError):
+            cnt += 1
+    print(cnt)
+
+def example03(base, gen, io, args):
+    cnt = 0
+    for event in io.rx():
+        (t_mono, t_utc, channel, data) = event
+        bits = base.Bits.from_bytes(data)
+        raw_datablocks = base.RawDatablock.parse(bits)
+        if not isinstance(raw_datablocks, ValueError):
+            cnt += len(raw_datablocks)
+    print(cnt)
 
 def append(acc, rec, *names):
     i = rec
@@ -36,10 +53,14 @@ def handle_datablocks(acc, raw_datablocks, d):
         for rec in records:
             handler(acc, rec)
 
-def custom(base, gen, io, args):
+class Word8:
+    def __init__(self): self.val = 0
+    def bump(self, val): self.val = (self.val + val) % 256
+
+def example06(base, gen, io, args):
     Cat048 = gen.Cat_048_1_32
     Cat062 = gen.Cat_062_1_21
-    acc = Accumulator()
+    acc = Word8()
     for event in io.rx():
         (t_mono, t_utc, channel, data) = event
         bits = base.Bits.from_bytes(data)

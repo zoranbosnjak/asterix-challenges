@@ -34,12 +34,34 @@ loadSamples path = do
         Just val -> pure val
 
 -- | Do nothing.
-example0 :: [ByteString] -> Int
-example0 _ = 0
+example00 :: [ByteString] -> Int
+example00 _ = 0
+
+-- | Number of all datagrams
+example01 :: [ByteString] -> Int
+example01 = length
+
+-- | Number of valid datagrams
+example02 :: [ByteString] -> Int
+example02 = sum . fmap checkSample
+  where
+    checkSample :: ByteString -> Int
+    checkSample rxBytes = fromRight 0 $ do
+        _rawDatablocks <- parseRawDatablocks rxBytes
+        pure 1
+
+-- | Number of datablocks
+example03 :: [ByteString] -> Int
+example03 = sum . fmap checkSample
+  where
+    checkSample :: ByteString -> Int
+    checkSample rxBytes = fromRight 0 $ do
+        rawDatablocks <- parseRawDatablocks rxBytes
+        pure $ length rawDatablocks
 
 -- | Number of decoding errors.
-example1 :: [ByteString] -> Int
-example1 = sum . fmap checkSample
+example04 :: [ByteString] -> Int
+example04 = sum . fmap checkSample
   where
     checkSample :: ByteString -> Int
     checkSample rxBytes = fromRight 1 $ do
@@ -57,8 +79,8 @@ example1 = sum . fmap checkSample
         cat = rawDatablockCategory rawDb
 
 -- | Number of valid records.
-example2 :: [ByteString] -> Int
-example2 = sum . fmap checkSample
+example05 :: [ByteString] -> Int
+example05 = sum . fmap checkSample
   where
     checkSample :: ByteString -> Int
     checkSample rxBytes = fromRight 0 $ do
@@ -76,8 +98,8 @@ example2 = sum . fmap checkSample
         cat = rawDatablockCategory rawDb
 
 -- | Custom item extraction.
-example3 :: [ByteString] -> Word8
-example3 = sum . fmap checkSample
+example06 :: [ByteString] -> Word8
+example06 = sum . fmap checkSample
   where
     checkSample :: ByteString -> Word8
     checkSample rxBytes = fromRight 0 $ do
@@ -113,8 +135,8 @@ example3 = sum . fmap checkSample
 
 -- | Number of ‘spare’ bits abuses.
 -- That is: number of times that spare bits are not zero.
-example4 :: [ByteString] -> Int
-example4 = sum . fmap checkSample
+example07 :: [ByteString] -> Int
+example07 = sum . fmap checkSample
   where
     checkSample :: ByteString -> Int
     checkSample rxBytes = fromRight 0 $ do
@@ -179,7 +201,7 @@ example4 = sum . fmap checkSample
 
 runExample :: Show a => Bool -> String -> a -> IO ()
 runExample showTime example val = do
-    when showTime $ print $ "--- " <> example <> " ---"
+    when showTime $ putStrLn $ "--- " <> example <> " ---"
     t1 <- getCurrentTime
     print val
     t2 <- getCurrentTime
@@ -212,9 +234,12 @@ main = do
     samples <- mconcat <$> traverse loadSamples (optInput opts)
     let timeIt :: Show a => String -> a -> IO ()
         timeIt = runExample (optTime opts)
-    timeIt "example0" $ example0 samples
-    timeIt "example1" $ example1 samples
-    timeIt "example2" $ example2 samples
-    timeIt "example3" $ example3 samples
-    timeIt "example4" $ example4 samples
+    timeIt "example 00 - do nothing" $ example00 samples
+    timeIt "example 01 - num of all datagrams" $ example01 samples
+    timeIt "example 02 - num of valid datagrams" $ example02 samples
+    timeIt "example 03 - num of datablocks" $ example03 samples
+    timeIt "example 04 - decoding errors" $ example04 samples
+    timeIt "example 05 - valid records" $ example05 samples
+    timeIt "example 06 - item extraction" $ example06 samples
+    timeIt "example 07 - spare abuses" $ example07 samples
 

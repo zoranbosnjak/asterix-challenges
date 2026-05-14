@@ -31,8 +31,30 @@ def load_samples(paths: List[str]) -> List[bytes]:
 def example00(samples: List[bytes]) -> int:
     return 0
 
-# number of decoding errors
+# number of all datagrams
 def example01(samples: List[bytes]) -> int:
+    return len(samples)
+
+# number of valid datagrams
+def example02(samples: List[bytes]) -> int:
+    def check_sample(sample: bytes) -> int:
+        raw_datablocks = RawDatablock.parse(Bits.from_bytes(sample))
+        if isinstance(raw_datablocks, ValueError):
+            return 0
+        return 1
+    return sum([check_sample(sample) for sample in samples])
+
+# number of datablocks
+def example03(samples: List[bytes]) -> int:
+    def check_sample(sample: bytes) -> int:
+        raw_datablocks = RawDatablock.parse(Bits.from_bytes(sample))
+        if isinstance(raw_datablocks, ValueError):
+            return 0
+        return len(raw_datablocks)
+    return sum([check_sample(sample) for sample in samples])
+
+# number of decoding errors
+def example04(samples: List[bytes]) -> int:
     def check_datablock(db: Any) -> int:
         cat = db.get_category()
         Spec = specs.get(cat)
@@ -50,7 +72,7 @@ def example01(samples: List[bytes]) -> int:
     return sum([check_sample(sample) for sample in samples])
 
 # number of valid records
-def example02(samples: List[bytes]) -> int:
+def example05(samples: List[bytes]) -> int:
     def check_datablock(db: Any) -> int:
         cat = db.get_category()
         Spec = specs.get(cat)
@@ -72,7 +94,7 @@ class Accumulator:
     def bump(self, val: int) -> None: self.val = (self.val + val) % 256
 
 # custom item extraction
-def example03(samples: List[bytes]) -> int:
+def example06(samples: List[bytes]) -> int:
     acc = Accumulator()
 
     def hander048(rec: Cat048.cv_record) -> None:
@@ -127,7 +149,7 @@ def example03(samples: List[bytes]) -> int:
     return acc.val
 
 # number of abused spare bits
-def example04(samples: List[bytes]) -> int:
+def example07(samples: List[bytes]) -> int:
     def check_item(i: Any) -> int:
         if not isinstance(i, Spare):
             return 0
@@ -181,7 +203,7 @@ def time_it(show_time: bool, name: str, example: Any, samples: List[bytes]) -> N
     t2 = datetime.datetime.now()
     dt = t2 - t1
     if show_time:
-        print('{:.6f}'.format(dt.total_seconds()))
+        print('{:.9f}s'.format(dt.total_seconds()))
 
 parser = argparse.ArgumentParser(prog='Test')
 parser.add_argument('-t', '--time-it', action='store_true')
@@ -190,9 +212,12 @@ args = parser.parse_args()
 
 # main
 samples = load_samples(args.files)
-time_it(args.time_it, "example 00", example00, samples)
-time_it(args.time_it, "example 01", example01, samples)
-time_it(args.time_it, "example 02", example02, samples)
-time_it(args.time_it, "example 03", example03, samples)
-time_it(args.time_it, "example 04", example04, samples)
+time_it(args.time_it, "example 00 - do nothing", example00, samples)
+time_it(args.time_it, "example 01 - num of all datagrams", example01, samples)
+time_it(args.time_it, "example 02 - num of valid datagrams", example02, samples)
+time_it(args.time_it, "example 03 - num of datablocks", example03, samples)
+time_it(args.time_it, "example 04 - decoding errors", example04, samples)
+time_it(args.time_it, "example 05 - valid records", example05, samples)
+time_it(args.time_it, "example 06 - item extraction", example06, samples)
+time_it(args.time_it, "example 07 - spare abuses", example07, samples)
 

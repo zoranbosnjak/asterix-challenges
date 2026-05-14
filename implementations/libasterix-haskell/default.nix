@@ -20,7 +20,9 @@ let
   };
 
   ghc = haskellPackages.ghcWithPackages (p: [
+    p.threadscope
     p.optparse-applicative
+    p.parallel
     p.libasterix
   ]);
 
