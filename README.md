@@ -41,15 +41,46 @@ ast-tool-py --version
 
 ## Examples
 
+### Example 00
+
+Do nothing. An example shall return constant 0.
+
+The purpose of this example is to measure a function call overhead, when given
+a list of samples as argument.
+
 ### Example 01
 
-Return number of decoding errors in given samples.
+Return number of datagrams in given samples.
+
+There is no real asterix processing, just determining input list length.
 
 ### Example 02
 
-Return total number of valid records in given samples.
+Return number of valid datagrams in given samples.
+
+A datagram is considered valid if all datablocks are correctly parsed. This
+example does not need to process records inside datablocks.
 
 ### Example 03
+
+Return number of valid datablocks in given samples.
+
+Each datagram might contain one or more datablocks. Datablocks are considered
+valid (counted) only when a complete datagram is properly processed. That is:
+if the last datablock can not be parsed correctly, a complete datablock shall
+be rejected. This example does not need to process records inside datablocks.
+
+### Example 04
+
+Return number of decoding errors in given samples.
+
+### Example 05
+
+Return total number of valid records in given samples.
+
+### Example 06
+
+Process valid records.
 
 Extract all items (if present) and sum them up, using modulo 256 (the final
 result shall be in range `[0..255]`).
@@ -62,7 +93,9 @@ result shall be in range `[0..255]`).
 - I062/510/IDENT
 - I062/290/MDS
 
-### Example 04
+### Example 07
+
+Process valid records.
 
 Return number of 'spare' bits abuses. That is: number of times that spare bits
 are not zero.
