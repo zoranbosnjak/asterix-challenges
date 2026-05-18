@@ -1,0 +1,173 @@
+* WJLXIXEB - identity filter
+
+  Input: datagram
+
+  Output: the same datagram or empty datagram in case of input error
+
+* TXHWAQHG - determine length of input
+
+  Input: datagram bytestring
+
+  Output: length of a datagram or (-1) in case of input error
+
+* GCMEDPFW - encode constant datagram
+
+  Input: length of a datagram - integer
+
+  Output: All zero datagram bytestring with required length or empty
+          bytestring in case of input error.
+
+* CAOXOESE - decode first level of asterix
+
+  This example does not need to process records inside datablocks.
+
+  Input: datagram bytestring
+
+  Output:
+  - null in case of decoding error, otherwise
+  - list of datablock results, where
+  - datablock result = [cat, length] pair of integers
+
+* JWOONFHI - encode first level of asterix
+
+  Input:
+    list of (cat, length) pairs of integers,
+    such as ~[[62, 100], [65, 200]]~.
+
+  Output:
+    datagram bytestring with all zero asterix data bytes, but a valid category
+    and length fields. The required length shall be ~>=3~, according to asterix
+    general rules. An empty bytestring shall be returned for invalid input.
+
+* FCYKLBBQ - reverse datablocks
+
+  Decode asterix up to the first level. Return datablocks in reversed order.
+
+  Input: datagram bytestring
+
+  Output:
+    datagram bytestring or empty bytestring on first level decoding error
+
+* MVQCOXZJ - full asterix record decoding, count records
+
+  Specifications in use:
+  - cat062, ed 1.21
+  - cat063, ed 1.7
+  - cat065, ed 1.6
+  (other categories are considered irrelevant, result = -1)
+
+  Input: datagram bytestring
+
+  Output:
+    - null on first level parsing error, otherwise
+    - list of datablock results, where
+    - datablock result is either null on parsing error or
+      number of containing records - integer
+
+* CQNBMHNB - asterix record item extraction to json
+
+  Simple asterix to json conversion.
+
+  Specifications in use:
+  - cat062, ed 1.21
+  - cat063, ed 1.7
+  - cat065, ed 1.6
+  (other categories are considered irrelevant - null)
+
+  Input: datagram bytestring
+
+  Output per record: extracted object of items, for example:
+  ~{"I062/015": null, "I062/010/SAC": 2, "I062/510/IDENT": [1,2,3], ...}~
+  Repetitive item extraction result shall be returned as a list of values.
+  Output is ~null~ on input conversion error.
+
+  Items to extract:
+  - I062/015
+  - I062/010/SAC
+  - I062/080/SRC
+  - I062/080/MD5
+  - I062/510/IDENT
+  - I062/290/MDS
+  - I063/010/SIC
+  - I065/000
+
+* RWVTCOAU - asterix record construction
+
+  Simple json to asterix conversion.
+
+  Specifications in use:
+  - cat062, ed 1.21
+  - cat063, ed 1.7
+  - cat065, ed 1.6
+
+  Input: json encoded information to be converted to asterix in the form
+
+  - { 'cat': 62
+    , '010': 1234
+    , '040': 123
+    , '290/PSR': 123
+    , '510': [ 1, 2, 3 ]
+    , '380/BDSSATA': [1, 2, 3]
+    }
+  - { 'cat': 63
+    , '010': 1234
+    , '015': 123
+    }
+  - { 'cat': 65
+    , '010': 1234
+    , '020': 123
+    }
+
+  Only the items listed above are relevant for this test. All items are optional,
+  for example, this is valid input: { 'cat': 62, '010': 1234 }, and so is this
+  { 'cat': 62 }.
+
+  Output: Asterix encoded datagram/datablock, containing single record of
+  required category and items. Output is empty string in case of input error.
+
+* AYTIGDAT - spare bits abuse detection
+
+  Specifications in use:
+  - cat062, ed 1.21
+  - cat063, ed 1.7
+  - cat065, ed 1.6
+  (other categories are considered irrelevant - false)
+
+  Input: datagram bytestring
+
+  Output:
+    - true on valid parsing result and if spare bits abuse is detected
+    - false otherwise
+
+* RKMIVFTJ - conversion to 'quantity'
+
+  Specifications in use:
+  - cat062, ed 1.21
+
+  Focus on items I062/070 (Time of Track Information).
+  If item is present, convert each value to 'seconds'.
+  Ignore errors.
+
+  Input: datagram bytestring
+
+  Output:
+  Possibly empty list of float values, where each value represents converted
+  value of required item, rounded to 3 decimal digits and converted to string,
+  for example:
+  ~["123.456","20.500","12.000"]~
+
+* BIQUTYDD - conversion from 'quantity'
+
+  Specifications in use:
+  - cat062, ed 1.21
+
+  Input: List of float values, each representing value of I062/070 in seconds,
+  for example: ~[123.456,20.500,12.000]~
+
+  Output:
+  Asterix encoded records (zero or more records in a single datablock),
+  where each record contains:
+    - item I062/010, set to fixed value 0x1234
+    - item I062/070, set to required input float value
+  Output empty bytestring on invalid input.
+

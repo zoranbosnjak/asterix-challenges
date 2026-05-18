@@ -1,225 +1,442 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-import Control.Monad
-import Data.Maybe
-import Data.Either
-import Data.Word
-import Data.Time.Clock
-import Data.Map as Map
-import Data.ByteString (ByteString)
-import Options.Applicative
+module Main where
 
-import Asterix.Coding
-import Asterix.Generated as Gen
+import           Control.Monad
+import           Data.Aeson             (FromJSON, Result (..), ToJSON,
+                                         Value (..), decodeStrict, encode,
+                                         fromJSON, object)
+import qualified Data.Aeson.KeyMap      as KM
+import           Data.ByteString        (ByteString)
+import qualified Data.ByteString        as BS
+import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Char8  as BS8
+import qualified Data.ByteString.Lazy   as BSL
+import           Data.Either
+import           Data.Function          ((&))
+import           Data.Map               as Map
+import           Data.Maybe
+import qualified Data.Vector            as Vec
+import           Data.Word
+import           Options.Applicative
+import           System.Exit            (die)
+import           System.IO
+import Text.Printf
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
-type Cat048 = Gen.Cat_048_1_32
+import           Asterix.Coding
+import           Asterix.Generated      as Gen
+
+hexlify :: ByteString -> ByteString
+hexlify = B16.encode
+
+unhexlify :: ByteString -> Maybe ByteString
+unhexlify st = either (const Nothing) Just (B16.decode st)
+
 type Cat062 = Gen.Cat_062_1_21
 type Cat063 = Gen.Cat_063_1_7
 type Cat065 = Gen.Cat_065_1_6
 
 specs :: Map Word8 VRecord
 specs = Map.fromList
-    [ (48, schema @(RecordOf Cat048) Proxy)
-    , (62, schema @(RecordOf Cat062) Proxy)
+    [ (62, schema @(RecordOf Cat062) Proxy)
     , (63, schema @(RecordOf Cat063) Proxy)
     , (65, schema @(RecordOf Cat065) Proxy)
     ]
 
-loadSamples :: FilePath -> IO [ByteString]
-loadSamples path = do
-    lst <- lines <$> readFile path
-    case traverse unhexlify lst of
-        Nothing -> error "Unable to read samples."
-        Just val -> pure val
+data Filter s a b = Filter
+    { stepInput   :: s -> a -> (b, s)   -- run on valid input
+    , stepInvalid :: s -> (b, s)      -- run on invalid input
+    }
 
--- | Do nothing.
-example00 :: [ByteString] -> Int
-example00 _ = 0
+-- | Helper function to create a simple filter
+arrFilter :: (a -> b) -> b -> Filter s a b
+arrFilter f val = Filter
+    { stepInput = \s x -> (f x, s)
+    , stepInvalid = \s -> (val, s)
+    }
 
--- | Number of all datagrams
-example01 :: [ByteString] -> Int
-example01 = length
+-- | Helper function for parsing datablocks.
+onDatablock :: (RawDatablock -> b) -> ByteString -> Maybe [b]
+onDatablock f s = case parseRawDatablocks s of
+    Left _e   -> Nothing
+    Right lst -> Just $ fmap f lst
 
--- | Number of valid datagrams
-example02 :: [ByteString] -> Int
-example02 = sum . fmap checkSample
-  where
-    checkSample :: ByteString -> Int
-    checkSample rxBytes = fromRight 0 $ do
-        _rawDatablocks <- parseRawDatablocks rxBytes
-        pure 1
+-- WJLXIXEB - identity filter
+chWJLXIXEB :: Filter () ByteString ByteString
+chWJLXIXEB = arrFilter id mempty
 
--- | Number of datablocks
-example03 :: [ByteString] -> Int
-example03 = sum . fmap checkSample
-  where
-    checkSample :: ByteString -> Int
-    checkSample rxBytes = fromRight 0 $ do
-        rawDatablocks <- parseRawDatablocks rxBytes
-        pure $ length rawDatablocks
+-- TXHWAQHG - determine length of input
+chTXHWAQHG :: Filter () ByteString Int
+chTXHWAQHG = arrFilter BS.length (-1)
 
--- | Number of decoding errors.
-example04 :: [ByteString] -> Int
-example04 = sum . fmap checkSample
-  where
-    checkSample :: ByteString -> Int
-    checkSample rxBytes = fromRight 1 $ do
-        rawDatablocks <- parseRawDatablocks rxBytes
-        pure $ sum $ fmap checkDatablock rawDatablocks
+-- GCMEDPFW - encode constant datagram
+chGCMEDPFW :: Filter () Int ByteString
+chGCMEDPFW = arrFilter (`BS.replicate` 0) mempty
 
-    checkDatablock :: RawDatablock -> Int
-    checkDatablock rawDb = case Map.lookup cat specs of
-        Nothing -> 0 -- ignore unexpected category
-        Just (GRecord sch) ->
-            let act = parseRecords (GRecord sch)
-                result = parse @StrictParsing act (getRawRecords rawDb)
-            in either (const 1) (const 0) result
-      where
-        cat = rawDatablockCategory rawDb
+-- CAOXOESE - decode first level of asterix
+chCAOXOESE :: Filter () ByteString (Maybe [[Int]])
+chCAOXOESE = arrFilter (onDatablock f) Nothing where
+    f (RawDatablock s) =
+        let cat = fromIntegral $ BS.index s 0
+            n = fromIntegral (BS.index s 1) * 256 + fromIntegral (BS.index s 2)
+        in [cat, n]
 
--- | Number of valid records.
-example05 :: [ByteString] -> Int
-example05 = sum . fmap checkSample
-  where
-    checkSample :: ByteString -> Int
-    checkSample rxBytes = fromRight 0 $ do
-        rawDatablocks <- parseRawDatablocks rxBytes
-        pure $ sum $ fmap checkDatablock rawDatablocks
+-- JWOONFHI - encode first level of asterix
+chJWOONFHI :: Filter () [[Int]] ByteString
+chJWOONFHI = arrFilter (maybe mempty mconcat . mapM f) mempty where
+    f :: [Int] -> Maybe ByteString
+    f x = do
+        guard $ length x == 2
+        let cat = x !! 0
+            n = x !! 1
+            (n1, n2) = divMod n 256
+        guard $ cat >= 0 && cat < 256
+        guard $ n >= 3 && n < 0x10000
+        pure $
+            BS.singleton (fromIntegral cat)
+         <> BS.singleton (fromIntegral n1)
+         <> BS.singleton (fromIntegral n2)
+         <> BS.replicate (n-3) 0
 
-    checkDatablock :: RawDatablock -> Int
-    checkDatablock rawDb = case Map.lookup cat specs of
-        Nothing -> 0 -- ignore unexpected category
-        Just (GRecord sch) ->
-            let act = parseRecords (GRecord sch)
-                result = parse @StrictParsing act (getRawRecords rawDb)
-            in either (const 0) length result
-      where
-        cat = rawDatablockCategory rawDb
+-- FCYKLBBQ - reverse datablocks
+chFCYKLBBQ :: Filter () ByteString ByteString
+chFCYKLBBQ = arrFilter f mempty where
+    f s = case parseRawDatablocks s of
+        Left _e   -> mempty
+        Right lst -> mconcat (unRawDatablock <$> reverse lst)
 
--- | Custom item extraction.
-example06 :: [ByteString] -> Word8
-example06 = sum . fmap checkSample
-  where
-    checkSample :: ByteString -> Word8
-    checkSample rxBytes = fromRight 0 $ do
-        rawDatablocks <- parseRawDatablocks rxBytes
-        pure $ sum $ fmap checkDatablock rawDatablocks
-
-    checkDatablock :: RawDatablock -> Word8
-    checkDatablock rawDb = fromRight 0 $ case rawDatablockCategory rawDb of
-        48 -> do
-            let act = parseRecords (schema @(RecordOf Cat048) Proxy)
-            records <- fmap Record <$> parse @StrictParsing act (getRawRecords rawDb)
-            pure $ sum $ fmap handleCat048 records
+-- MVQCOXZJ - full asterix record decoding, count records
+chMVQCOXZJ :: Filter () ByteString (Maybe [Maybe Int])
+chMVQCOXZJ = arrFilter (onDatablock checkDatablock) Nothing where
+    checkDatablock :: RawDatablock -> Maybe Int
+    checkDatablock rawDb = fromRight Nothing $ case rawDatablockCategory rawDb of
         62 -> do
             let act = parseRecords (schema @(RecordOf Cat062) Proxy)
-            records <- fmap Record <$> parse @StrictParsing act (getRawRecords rawDb)
-            pure $ sum $ fmap handleCat062 records
-        _ -> pure 0
+            Just . length <$> parse @StrictParsing act (getRawRecords rawDb)
+        63 -> do
+            let act = parseRecords (schema @(RecordOf Cat063) Proxy)
+            Just . length <$> parse @StrictParsing act (getRawRecords rawDb)
+        65 -> do
+            let act = parseRecords (schema @(RecordOf Cat065) Proxy)
+            Just . length <$> parse @StrictParsing act (getRawRecords rawDb)
+        _ -> pure $ Just (-1)
 
-    handleCat048 :: Record (RecordOf Cat048) -> Word8
-    handleCat048 r = maybe 0 asUint (getItem @"010" r >>= pure . getItem @"SAC")
 
-    handleCat062 :: Record (RecordOf Cat062) -> Word8
-    handleCat062 r = sum
-        [ maybe 0 asUint (getItem @"015" r)
-        , maybe 0 asUint (getItem @"010" r >>= pure . getItem @"SIC")
-        , maybe 0 asUint (getItem @"080" r >>= getItem @"SRC" . getVariation)
-        , maybe 0 asUint (getItem @"080" r >>= getItem @"MD5" . getVariation)
-        , fromMaybe 0 $ do
-            i510 <- getVariation <$> getItem @"510" r
-            pure $ sum $ asUint . getItem @"IDENT" <$> getRepetitiveItems i510
-        , maybe 0 asUint (getItem @"290" r >>= getItem @"MDS" . getVariation)
+-- CQNBMHNB - asterix record item extraction to json
+chCQNBMHNB :: Filter () ByteString (Maybe [Maybe [Value]])
+chCQNBMHNB = arrFilter (onDatablock checkDatablock) Nothing where
+    checkDatablock :: RawDatablock -> Maybe [Value]
+    checkDatablock rawDb = case rawDatablockCategory rawDb of
+        62 -> do
+            let act = parseRecords (schema @(RecordOf Cat062) Proxy)
+                result = parse @StrictParsing act (getRawRecords rawDb)
+            case result of
+                Left _        -> Nothing
+                Right records -> Just (checkRecord062 . Record <$> records)
+        63 -> do
+            let act = parseRecords (schema @(RecordOf Cat063) Proxy)
+                result = parse @StrictParsing act (getRawRecords rawDb)
+            case result of
+                Left _        -> Nothing
+                Right records -> Just (checkRecord063 . Record <$> records)
+        65 -> do
+            let act = parseRecords (schema @(RecordOf Cat065) Proxy)
+                result = parse @StrictParsing act (getRawRecords rawDb)
+            case result of
+                Left _        -> Nothing
+                Right records -> Just (checkRecord065 . Record <$> records)
+        _ -> Nothing
+
+    checkRecord062 :: Record (RecordOf Cat062) -> Value
+    checkRecord062 r = object
+        [ ("I062/015", i015)
+        , ("I062/010/SAC", iSAC)
+        , ("I062/080/SRC", iSRC)
+        , ("I062/080/MD5", iMD5)
+        , ("I062/510/IDENT", iIDENT)
+        , ("I062/290/MDS", iMDS)
         ]
+      where
+        i015 = maybe Null (Number . fromIntegral @Int . asUint)
+            (getItem @"015" r)
+        iSAC = maybe Null (Number . fromIntegral @Int . asUint)
+            (getItem @"010" r >>= pure . getItem @"SAC")
+        iSRC = maybe Null (Number . fromIntegral @Int . asUint)
+            (getItem @"080" r >>= getItem @"SRC" . getVariation)
+        iMD5 = maybe Null (Number . fromIntegral @Int . asUint)
+            (getItem @"080" r >>= getItem @"MD5" . getVariation)
+        iIDENT = maybe Null (Array . Vec.fromList) $ do
+            i510 <- getVariation <$> getItem @"510" r
+            Just $ Number . fromIntegral @Int . asUint
+                . getItem @"IDENT" <$> getRepetitiveItems i510
+        iMDS = maybe Null (Number . fromIntegral @Int . asUint)
+            (getItem @"290" r >>= getItem @"MDS" . getVariation)
 
--- | Number of ‘spare’ bits abuses.
--- That is: number of times that spare bits are not zero.
-example07 :: [ByteString] -> Int
-example07 = sum . fmap checkSample
+    checkRecord063 :: Record (RecordOf Cat063) -> Value
+    checkRecord063 r = object
+        [ ("I063/010/SIC", iSIC)
+        ]
+      where
+        iSIC = maybe Null (Number . fromIntegral @Int . asUint)
+            (getItem @"010" r >>= pure . getItem @"SIC")
+
+    checkRecord065 :: Record (RecordOf Cat065) -> Value
+    checkRecord065 r = object
+        [ ("I065/000", i000)
+        ]
+      where
+        i000 = maybe Null (Number . fromIntegral @Int . asUint)
+            (getItem @"000" r)
+
+-- asterix record construction
+chRWVTCOAU :: Filter () Value ByteString
+chRWVTCOAU = arrFilter f mempty where
+    f :: Value -> ByteString
+    f val = fromMaybe mempty $ do
+        o <- case val of
+            Object o -> pure o
+            _        -> Nothing
+        cat <- KM.lookup "cat" o >>= \case
+            Number x -> pure x
+            _ -> Nothing
+        case cat of
+            62 -> do
+                let db :: Datablock (DatablockOf Cat062) = datablock (r *: nil)
+                    r = record nil
+                        & maybeSetItem @"010" (lookupItem fromInteger o "010")
+                        & maybeSetItem @"040" (lookupItem fromInteger o "040")
+                        & maybeSetItem @"290" (do
+                            x <- lookupItem fromInteger o "290/PSR"
+                            Just $ compound (item @"PSR" x *: nil)
+                            )
+                        & maybeSetItem @"510" (do
+                            lst <- lookupItem (fmap fromInteger) o "510"
+                            Just $ repetitive lst
+                            )
+                        & maybeSetItem @"380" (do
+                            lst <- lookupItem (fmap fromInteger) o "380/BDSDATA"
+                            Just $ compound
+                                (item @"BDSDATA" ( repetitive lst) *: nil)
+                            )
+                Just $ toByteString $ unparse @SBuilder db
+            63 -> do
+                let db :: Datablock (DatablockOf Cat063) = datablock (r *: nil)
+                    r = record nil
+                        & maybeSetItem @"010" (lookupItem fromInteger o "010")
+                        & maybeSetItem @"015" (lookupItem fromInteger o "015")
+                Just $ toByteString $ unparse @SBuilder db
+            65 -> do
+                let db :: Datablock (DatablockOf Cat065) = datablock (r *: nil)
+                    r = record nil
+                        & maybeSetItem @"010" (lookupItem fromInteger o "010")
+                        & maybeSetItem @"020" (lookupItem fromInteger o "020")
+                Just $ toByteString $ unparse @SBuilder db
+            _ -> Nothing
+      where
+        lookupItem convert o key = fromJSON <$> KM.lookup key o >>= \case
+            Error _ -> Nothing
+            Data.Aeson.Success i -> Just $ convert i
+
+-- spare bits abuse detection
+chAYTIGDAT :: Filter () ByteString Bool
+chAYTIGDAT = arrFilter (maybe False or . onDatablock checkDatablock) False
   where
-    checkSample :: ByteString -> Int
-    checkSample rxBytes = fromRight 0 $ do
-        rawDatablocks <- parseRawDatablocks rxBytes
-        pure $ sum $ fmap checkDatablock rawDatablocks
-
-    checkDatablock :: RawDatablock -> Int
+    checkDatablock :: RawDatablock -> Bool
     checkDatablock rawDb = case Map.lookup cat specs of
-        Nothing -> 0 -- ignore unexpected category
-        Just (GRecord sch) -> fromRight 0 $ do
+        Nothing -> False
+        Just (GRecord sch) ->
             let act = parseRecords (GRecord sch)
-            records <- parse @StrictParsing act (getRawRecords rawDb)
-            pure $ sum $ fmap (checkRecord sch) records
+                result = parse @StrictParsing act (getRawRecords rawDb)
+            in case result of
+                Left _        -> False
+                Right records -> any (checkRecord sch) records
       where
         cat = rawDatablockCategory rawDb
 
-    checkRecord :: [VUapItem] -> URecord -> Int
-    checkRecord lst (URecord _bld items) = sum $ zipWith checkUapItem lst items
+    checkRecord :: [VUapItem] -> URecord -> Bool
+    checkRecord lst (URecord _bld items) = or $ zipWith checkUapItem lst items
 
-    checkUapItem :: VUapItem -> Maybe (RecordItem UNonSpare) -> Int
+    checkUapItem :: VUapItem -> Maybe (RecordItem UNonSpare) -> Bool
     checkUapItem sch mri = case (sch, mri) of
-        (_, Nothing) -> 0
+        (_, Nothing) -> False
         (GUapItem sch1, Just (RecordItem nsp)) -> checkNonSpare sch1 nsp
-        (GUapItemSpare, _ ) -> 0
+        (GUapItemSpare, _ ) -> False
         (GUapItemRFS, Just (RecordItem _)) -> error "TODO"
         _ -> error "internal error: unexpected result"
 
-    checkNonSpare :: VNonSpare -> UNonSpare -> Int
+    checkNonSpare :: VNonSpare -> UNonSpare -> Bool
     checkNonSpare (GNonSpare _name _title sch) (UNonSpare rv) = checkRuleVar sch rv
 
-    checkRuleVar :: VRule VVariation -> URuleVar -> Int
+    checkRuleVar :: VRule VVariation -> URuleVar -> Bool
     checkRuleVar sch (URuleVar var) = case sch of
-        GContextFree sch1 -> checkVariation sch1 var
+        GContextFree sch1   -> checkVariation sch1 var
         GDependent _ sch1 _ -> checkVariation sch1 var
 
-    checkVariation :: VVariation -> UVariation -> Int
+    checkVariation :: VVariation -> UVariation -> Bool
     checkVariation sch var = case (sch, var) of
-        (GElement {}, _) -> 0
-        (GGroup _offset lst, UGroup items) -> sum $ zipWith checkItem lst items
+        (GElement {}, _) -> False
+        (GGroup _offset lst, UGroup items) -> or $ zipWith checkItem lst items
         (GExtended lst, UExtended _bld mItems) ->
-            let f :: Maybe VItem -> Maybe UItem -> Int
-                f Nothing _ = 0
-                f (Just _sch1) Nothing = 0
+            let f :: Maybe VItem -> Maybe UItem -> Bool
+                f Nothing _            = False
+                f (Just _sch1) Nothing = False
                 f (Just sch1) (Just i) = checkItem sch1 i
-            in sum $ zipWith f lst mItems
+            in or $ zipWith f lst mItems
         (GRepetitive _rt sch1, URepetitive _bld vars) ->
-            sum $ fmap (checkVariation sch1) vars
-        (GExplicit _, _) -> 0
+            any (checkVariation sch1) vars
+        (GExplicit _, _) -> False
         (GCompound lst, UCompound _bld mNsps) ->
-            let f :: Maybe (GNonSpare ValueLevel) -> Maybe UNonSpare -> Int
-                f Nothing _ = 0
-                f (Just _sch1) Nothing = 0
+            let f :: Maybe (GNonSpare ValueLevel) -> Maybe UNonSpare -> Bool
+                f Nothing _              = False
+                f (Just _sch1) Nothing   = False
                 f (Just sch1) (Just nsp) = checkNonSpare sch1 nsp
-            in sum $ zipWith f lst mNsps
+            in or $ zipWith f lst mNsps
         _ -> error "internal error: unexpected result"
 
-    checkItem :: VItem -> UItem -> Int
-    checkItem (GSpare _o _n) (USpare b) = case bitsToNum @Int b of
-        0 -> 0
-        _ -> 1
-    checkItem _ _ = 0
+    checkItem :: VItem -> UItem -> Bool
+    checkItem (GSpare _o _n) (USpare b) = bitsToNum @Int b /= 0
+    checkItem _ _                       = False
 
-runExample :: Show a => Bool -> String -> a -> IO ()
-runExample showTime example val = do
-    when showTime $ putStrLn $ "--- " <> example <> " ---"
-    t1 <- getCurrentTime
-    print val
-    t2 <- getCurrentTime
-    when showTime $ print $ diffUTCTime t2 t1
+-- conversion to 'quantity'
+chRKMIVFTJ :: Filter () ByteString [String]
+chRKMIVFTJ = arrFilter (maybe [] join . onDatablock checkDatablock) [] where
+    checkDatablock :: RawDatablock -> [String]
+    checkDatablock rawDb = case rawDatablockCategory rawDb of
+        62 -> do
+            let act = parseRecords (schema @(RecordOf Cat062) Proxy)
+                result = parse @StrictParsing act (getRawRecords rawDb)
+            case result of
+                Left _        -> []
+                Right records -> catMaybes
+                    [checkRecord062 (Record r) | r <- records]
+        _ -> []
+      where
+        checkRecord062 :: Record (RecordOf Cat062) -> Maybe String
+        checkRecord062 r = do
+            i070 <- getItem @"070" r
+            pure $ printf "%.3f" $ unQuantity $ asQuantity @"s" i070
 
-data Options = Options
-    { optTime :: Bool
-    , optInput :: [FilePath]
+-- conversion from 'quantity'
+chBIQUTYDD :: Filter () [Double] ByteString
+chBIQUTYDD = arrFilter f mempty where
+    f :: [Double] -> ByteString
+    f = toByteString . datablockBuilder @Int 62 . fmap (unRecord . mkRecord)
+
+    mkRecord :: Double -> Record (RecordOf Cat062)
+    mkRecord val = record
+        ( item @"010" 0x1234
+       *: item @"070" (quantity @"s" $ Quantity val)
+       *: nil )
+
+-- conversion to 'string'
+chKUPKVSJU :: Filter () ByteString [String]
+chKUPKVSJU = arrFilter (maybe [] join . onDatablock checkDatablock) [] where
+    checkDatablock :: RawDatablock -> [String]
+    checkDatablock rawDb = case rawDatablockCategory rawDb of
+        62 -> do
+            let act = parseRecords (schema @(RecordOf Cat062) Proxy)
+                result = parse @StrictParsing act (getRawRecords rawDb)
+            case result of
+                Left _        -> []
+                Right records -> join
+                    [checkRecord062 (Record r) | r <- records]
+        _ -> []
+      where
+        checkRecord062 :: Record (RecordOf Cat062) -> [String]
+        checkRecord062 r = catMaybes [i060, i380, i390]
+          where
+            i060 = do
+                i <- getItem @"060" r
+                pure $ asString $ getItem @"MODE3A" i
+            i380 = do
+                i <- getItem @"380" r
+                j <- getItem @"ID" $ getVariation i
+                pure $ asString j
+            i390 = do
+                i <- getItem @"390" r
+                j <- getItem @"CS" $ getVariation i
+                pure $ asString j
+
+
+class Input t where
+    convertInput :: ByteString -> Maybe t
+
+instance FromJSON t => Input t where
+    convertInput = decodeStrict
+
+instance {-# OVERLAPPING #-} Input ByteString where
+    convertInput = Main.unhexlify
+
+class Output t where
+    convertOutput :: t -> ByteString
+
+instance ToJSON t => Output t where
+    convertOutput = BSL.toStrict . encode
+
+instance {-# OVERLAPPING #-} Output ByteString where
+    convertOutput = Main.hexlify
+
+runFilter :: (Input a, Output b) => s -> Filter s a b -> IO ()
+runFilter initialState (Filter f1 f2) = go initialState where
+    go s = isEOF >>= \case
+        True -> pure ()
+        False -> do
+            (y, s') <- convertInput <$> BS8.getLine >>= \case
+                Nothing -> pure $ f2 s
+                Just x -> pure $ f1 s x
+            BS8.putStrLn $ convertOutput y
+            hFlush stdout
+            go s'
+
+solutions :: [(Text, IO ())]
+solutions =
+    [ ("WJLXIXEB", runFilter () chWJLXIXEB)
+    , ("TXHWAQHG", runFilter () chTXHWAQHG)
+    , ("GCMEDPFW", runFilter () chGCMEDPFW)
+    , ("CAOXOESE", runFilter () chCAOXOESE)
+    , ("JWOONFHI", runFilter () chJWOONFHI)
+    , ("FCYKLBBQ", runFilter () chFCYKLBBQ)
+    , ("MVQCOXZJ", runFilter () chMVQCOXZJ)
+    , ("CQNBMHNB", runFilter () chCQNBMHNB)
+    , ("RWVTCOAU", runFilter () chRWVTCOAU)
+    , ("AYTIGDAT", runFilter () chAYTIGDAT)
+    , ("RKMIVFTJ", runFilter () chRKMIVFTJ)
+    , ("BIQUTYDD", runFilter () chBIQUTYDD)
+    , ("KUPKVSJU", runFilter () chKUPKVSJU)
+    ]
+
+data Command
+    = ShowManifest
+    | RunChallenge Text
+    deriving (Show, Eq)
+
+newtype Options = Options
+    { optCommand :: Command
     } deriving (Show, Eq)
+
+pShowManifest :: ParserInfo Command
+pShowManifest = info (pure ShowManifest) idm
+
+pRunChallenge :: ParserInfo Command
+pRunChallenge = info p idm where
+    p = RunChallenge
+        <$> strArgument
+            ( help "challenge identifier"
+           <> metavar "ID"
+            )
 
 options :: Parser Options
 options = Options
-    <$> switch
-        ( long "time-it"
-       <> short 't'
-       <> help "Output timings"
+    <$> hsubparser
+        ( command "manifest" pShowManifest
+       <> command "run" pRunChallenge
         )
-    <*> many ( strArgument ( metavar "PATH" ))
 
 optsI :: ParserInfo Options
 optsI = info (options <**> helper)
@@ -229,17 +446,9 @@ optsI = info (options <**> helper)
       )
 
 main :: IO ()
-main = do
-    opts <- execParser optsI
-    samples <- mconcat <$> traverse loadSamples (optInput opts)
-    let timeIt :: Show a => String -> a -> IO ()
-        timeIt = runExample (optTime opts)
-    timeIt "example 00 - do nothing" $ example00 samples
-    timeIt "example 01 - num of all datagrams" $ example01 samples
-    timeIt "example 02 - num of valid datagrams" $ example02 samples
-    timeIt "example 03 - num of datablocks" $ example03 samples
-    timeIt "example 04 - decoding errors" $ example04 samples
-    timeIt "example 05 - valid records" $ example05 samples
-    timeIt "example 06 - item extraction" $ example06 samples
-    timeIt "example 07 - spare abuses" $ example07 samples
+main = (optCommand <$> execParser optsI) >>= \case
+    ShowManifest -> mapM_ (T.putStrLn . fst) solutions
+    RunChallenge identifier -> case Prelude.lookup identifier solutions of
+        Nothing  -> die (T.unpack identifier <> " not implemented!")
+        Just act -> act
 

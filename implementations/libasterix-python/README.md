@@ -7,7 +7,8 @@ nix-shell
 find . | grep "\.py$" | entr sh -c 'clear && date && mypy'
 
 # run examples
-./solution.py -t ../../samples.txt
+./solution.py manifest
+cat ../../samples.txt | ./solution.py run WJLXIXEB
 
 exit # out of nix-shell
 ```

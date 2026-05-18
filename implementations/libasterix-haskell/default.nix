@@ -20,14 +20,17 @@ let
   };
 
   ghc = haskellPackages.ghcWithPackages (p: [
-    p.threadscope
+    p.libasterix
+    p.aeson
     p.optparse-applicative
     p.parallel
-    p.libasterix
+    p.threadscope
+    p.hlint
   ]);
 
   env = pkgs.mkShell {
     buildInputs = [
+      pkgs.stylish-haskell
       ghc
     ];
   };

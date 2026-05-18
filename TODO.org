@@ -1,0 +1,25 @@
+* TODO KUPKVSJU - conversion to 'string'
+
+  Specifications in use:
+  - cat062, ed 1.21
+
+  Focus on items
+    - I062/060/MODE3A (string octal)
+    - I062/380/ID     (string icao)
+    - I062/390/CS     (string ascii)
+
+  Each of the items above is of type 'string'. Extract all of them to list of
+  strings. Skip records with errors.
+
+  For 'string ascii' type, valid characters are between ascii codes 32 and 126.
+
+  Replace invalid characters with space - ' '.
+
+  Input: datagram bytestring
+
+  Output:
+  Possibly empty list of strings, where each string is extracted from items
+  above.
+
+* TODO UFMDSBSX - conversion from 'string'
+

@@ -4,18 +4,19 @@
 nix-shell
 
 # monitor with ghcid
-ghcid --no-title "--command=ghci -Wall solution.hs"
+ghcid --no-title --lint "--command=ghci -Wall solution.hs"
 
 # run examples (interpreted)
-runhaskell solution.hs -t ../../samples.txt
+runhaskell solution.hs manifest
+cat ../../samples.txt | runhaskell solution.hs run {challenge-id}
 
 # run examples (compiled)
 ghc -O2 solution.hs
-./solution -t ../../samples.txt
+cat ../../samples.txt | ./solution run {challenge-id}
 
 # experiments with threading and threadscope
 ghc -O2 -threaded -rtsopts solution.hs
-./solution -t ../../samples.txt +RTS -N -l
+cat ../../samples.txt | ./solution run {challenge-id} +RTS -N -l
 threadscope solution.eventlog
 
 exit # out of nix-shell
