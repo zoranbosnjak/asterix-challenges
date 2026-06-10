@@ -70,6 +70,7 @@ class RandomGenerator:
         status = self.rap.poll()
         if status is not None:
             print('Asterix generator terminated')
+            print('To reproduce, use seed value:', self.seed)
             sys.exit(1)
         line = self.rap.stdout.readline()
         return line.decode('utf-8')  # type: ignore
@@ -249,10 +250,11 @@ class Implementation:
     def __del__(self) -> None:
         self.p.kill()
 
-    def call(self, sample: str) -> Tuple[bytes, datetime.timedelta]:
+    def call(self, seed: int, sample: str) -> Tuple[bytes, datetime.timedelta]:
         status = self.p.poll()
         if status is not None:
             print('Process terminated:', self.cmd)
+            print('To reproduce, use seed value:', seed)
             sys.exit(1)
         x = (sample + '\n').encode('utf-8')
         encoded = (sample + '\n').encode('utf-8')
@@ -272,7 +274,7 @@ def check_sample(seed: int,
     results = []
     time_required = []
     for i in implementations:
-        (result, dt) = i.call(sample)
+        (result, dt) = i.call(seed, sample)
         results.append(result)
         time_required.append(dt)
     if len(set(results)) != 1:
@@ -298,11 +300,12 @@ def cmd_show_manifest(seed: Any, args: Any) -> None:
             out += ' - ' + Cls.__doc__.splitlines()[0]
         print(out)
 
-def cmd_samples(seed: Any, args: Any) -> None:
+def cmd_samples(seed: int, args: Any) -> None:
     name = args.challenge
     Rnd = all_challenges.get(name)
     if Rnd is None:
         print('Random generator for', name, 'is not defined')
+        print('To reproduce, use seed value:', seed)
         sys.exit(1)
     rnd = Rnd(seed, args.error)
     for line in rnd:
@@ -313,6 +316,7 @@ def cmd_run(seed: int, args: Any) -> None:
     Rnd = all_challenges.get(name)
     if Rnd is None:
         print('Random generator for', name, 'is not defined')
+        print('To reproduce, use seed value:', seed)
         sys.exit(1)
     cnt = 0
     append_challenge = name if args.append_challenge else None
@@ -342,7 +346,7 @@ def cmd_run(seed: int, args: Any) -> None:
     for i in implementations:
         print('{:.6f}s'.format(i.accumulated_time))
 
-def cmd_autorun(seed: Any, args: Any) -> None:
+def cmd_autorun(seed: int, args: Any) -> None:
     names = args.challenges
     if not names:
         names = list(all_challenges.keys())
@@ -350,10 +354,12 @@ def cmd_autorun(seed: Any, args: Any) -> None:
         challenges= {name: all_challenges[name] for name in names}
     except KeyError:
         print('Challenge not implemented!')
+        print('To reproduce, use seed value:', seed)
         sys.exit(1)
 
     if not args.impl:
         print('Some implementation argument is required')
+        print('To reproduce, use seed value:', seed)
         sys.exit(1)
 
     while True:
