@@ -102,25 +102,25 @@
 
   Input: json encoded information to be converted to asterix in the form
 
-  - { 'cat': 62
-    , '010': 1234
-    , '040': 123
-    , '290/PSR': 123
-    , '510': [ 1, 2, 3 ]
-    , '380/BDSSATA': [1, 2, 3]
+  - { "cat": 62
+    , "010": 1234
+    , "040": 123
+    , "290/PSR": 123
+    , "510": [ {"IDENT": 1, "TRACK": 2}, {"IDENT": 3, "TRACK": 4} ]:
+    , "380/BDSSATA": [1, 2, 3]
     }
-  - { 'cat': 63
-    , '010': 1234
-    , '015': 123
+  - { "cat": 63
+    , "010": 1234
+    , "015": 123
     }
-  - { 'cat': 65
-    , '010': 1234
-    , '020': 123
+  - { "cat": 65
+    , "010": 1234
+    , "020": 123
     }
 
   Only the items listed above are relevant for this test. All items are optional,
-  for example, this is valid input: { 'cat': 62, '010': 1234 }, and so is this
-  { 'cat': 62 }.
+  for example, this is valid input: { "cat": 62, "010": 1234 }, and so is this
+  { "cat": 62 }.
 
   Output: Asterix encoded datagram/datablock, containing single record of
   required category and items. Output is empty string in case of input error.

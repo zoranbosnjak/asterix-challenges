@@ -280,9 +280,16 @@ class RWVTCOAU(Filter):
             if i510 is not None:
                 if not isinstance(i510, list):
                     return ''
-                if not all([isinstance(x, int) for x in i510]):
-                    return ''
-                r = r.set_item('510', i510)
+                y = []
+                for x in i510:
+                    if not isinstance(x, dict): return ''
+                    iIDENT = x.get('IDENT')
+                    iTRACK = x.get('TRACK')
+                    if not isinstance(iIDENT, int): return ''
+                    if not isinstance(iTRACK, int): return ''
+                    if not isinstance(x.get('TRACK'), int): return ''
+                    y.append((('IDENT', iIDENT), ('TRACK', iTRACK)))
+                r = r.set_item('510', y)
 
             if iBDS is not None:
                 if not isinstance(iBDS, list):

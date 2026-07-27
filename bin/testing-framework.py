@@ -168,12 +168,15 @@ class RWVTCOAU(RandomGenerator):
             if self.random_bool(0.5):
                 val = []
                 for i in range(random.randint(1, 5)):
-                    val.append(random.randint(0, pow(2, 23)))
+                    val.append({
+                        'IDENT': random.randint(0, pow(2, 8)),
+                        'TRACK': random.randint(0, pow(2, 15)),
+                    })
                 result['510'] = val  # type: ignore
             if self.random_bool(0.5):
                 val = []
                 for i in range(random.randint(1, 5)):
-                    val.append(random.randint(0, pow(2, 23)))
+                    val.append(random.randint(0, pow(2, 23))) # type: ignore
                 result['380/BDSDATA'] = val  # type: ignore
         elif cat == 63:
             if self.random_bool(0.5):

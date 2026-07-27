@@ -6,7 +6,7 @@
 module Main where
 
 import           Control.Monad
-import           Data.Aeson             (FromJSON, Result (..), ToJSON,
+import           Data.Aeson             (FromJSON, Object, Result (..), ToJSON,
                                          Value (..), decodeStrict, encode,
                                          fromJSON, object)
 import qualified Data.Aeson.KeyMap      as KM
@@ -19,15 +19,16 @@ import           Data.Either
 import           Data.Function          ((&))
 import           Data.Map               as Map
 import           Data.Maybe
+import qualified Data.Scientific
+import           Data.Text              (Text)
+import qualified Data.Text              as T
+import qualified Data.Text.IO           as T
 import qualified Data.Vector            as Vec
 import           Data.Word
 import           Options.Applicative
 import           System.Exit            (die)
 import           System.IO
-import Text.Printf
-import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import           Text.Printf
 
 import           Asterix.Coding
 import           Asterix.Generated      as Gen
@@ -208,6 +209,28 @@ chRWVTCOAU = arrFilter f mempty where
         case cat of
             62 -> do
                 let db :: Datablock (DatablockOf Cat062) = datablock (r *: nil)
+                    lookupInteger :: KM.Key -> Object -> Maybe Integer
+                    lookupInteger key o2 = KM.lookup key o2 >>= \case
+                        Number x -> do
+                            guard $ Data.Scientific.isInteger x
+                            pure $ round x
+                        _ -> Nothing
+                    getSubitem510 ::
+                        ( nsp ~ (RecordOf Cat062 ~> "510")
+                        , nsp ~ 'GNonSpare name title rv
+                        , rv ~ 'GContextFree ('GRepetitive rt var)
+                        )
+                        => Value
+                        -> Maybe (Variation var)
+                    getSubitem510 = \case
+                        Object o2 -> do
+                            iIDENT <- lookupInteger "IDENT" o2
+                            iTRACK <- lookupInteger "TRACK" o2
+                            pure $ group
+                                ( item @"IDENT" (fromInteger iIDENT)
+                               *: item @"TRACK" (fromInteger iTRACK)
+                               *: nil)
+                        _ -> Nothing
                     r = record nil
                         & maybeSetItem @"010" (lookupItem fromInteger o "010")
                         & maybeSetItem @"040" (lookupItem fromInteger o "040")
@@ -216,8 +239,9 @@ chRWVTCOAU = arrFilter f mempty where
                             Just $ compound (item @"PSR" x *: nil)
                             )
                         & maybeSetItem @"510" (do
-                            lst <- lookupItem (fmap fromInteger) o "510"
-                            Just $ repetitive lst
+                            lst1 <- lookupItem id o "510"
+                            lst2 <- mapM getSubitem510 lst1
+                            Just $ repetitive lst2
                             )
                         & maybeSetItem @"380" (do
                             lst <- lookupItem (fmap fromInteger) o "380/BDSDATA"
