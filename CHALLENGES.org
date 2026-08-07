@@ -64,6 +64,24 @@
     - datablock result is either null on parsing error or
       number of containing records - integer
 
+* VNRPNTIV - make single record datablocks
+
+  When a multi-record datablock is received, convert to multiple datablocks
+  with a single record each.
+
+  Specifications in use:
+  - cat062, ed 1.21
+  - cat063, ed 1.7
+  - cat065, ed 1.6
+  (other categories are considered irrelevant - forward unchanged)
+
+  Input: datagram bytestring
+
+  Output: datagram bytestring
+
+  In case of parsing error on input, forward relevant data segment unchanged.
+  Process correct data when possible.
+
 * CQNBMHNB - asterix record item extraction to json
 
   Simple asterix to json conversion.

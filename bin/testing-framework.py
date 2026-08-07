@@ -137,6 +137,17 @@ class MVQCOXZJ(RandomGenerator):
     def sample(self) -> str:
         return self.random_asterix()
 
+class VNRPNTIV(RandomGenerator):
+    """make single record datablocks"""
+    def on_init(self) -> None:
+        self.rap = self.random_asterix_process([
+            (62, '1.21'),
+            (63, '1.7'),
+            (65, '1.6'),
+        ])
+
+    def sample(self) -> str:
+        return self.random_asterix()
 
 class CQNBMHNB(RandomGenerator):
     """asterix record item extraction to json"""

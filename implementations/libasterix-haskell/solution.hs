@@ -129,6 +129,26 @@ chMVQCOXZJ = arrFilter (onDatablock checkDatablock) Nothing where
         _ -> pure $ Just (-1)
 
 
+-- VNRPNTIV - make single record datablocks
+chVNRPNTIV :: Filter () ByteString ByteString
+chVNRPNTIV = arrFilter f mempty where
+    f :: ByteString -> ByteString
+    f s = case parseRawDatablocks s of
+        Left _   -> s
+        Right lst -> mconcat $ fmap g lst
+    g :: RawDatablock -> ByteString
+    g rawDb = fromMaybe (toByteString $ unparse @SBuilder rawDb) $ do
+        let cat = rawDatablockCategory rawDb
+        act <- case cat of
+            62 -> Just $ parseRecords (schema @(RecordOf Cat062) Proxy)
+            63 -> Just $ parseRecords (schema @(RecordOf Cat063) Proxy)
+            65 -> Just $ parseRecords (schema @(RecordOf Cat065) Proxy)
+            _ -> Nothing
+        records <- case parse @StrictParsing act (getRawRecords rawDb) of
+            Left _ -> Nothing
+            Right lst -> pure lst
+        pure $ toByteString $ mconcat (datablockBuilder cat . pure <$> records)
+
 -- CQNBMHNB - asterix record item extraction to json
 chCQNBMHNB :: Filter () ByteString (Maybe [Maybe [Value]])
 chCQNBMHNB = arrFilter (onDatablock checkDatablock) Nothing where
@@ -427,6 +447,7 @@ solutions =
     , ("JWOONFHI", runFilter () chJWOONFHI)
     , ("FCYKLBBQ", runFilter () chFCYKLBBQ)
     , ("MVQCOXZJ", runFilter () chMVQCOXZJ)
+    , ("VNRPNTIV", runFilter () chVNRPNTIV)
     , ("CQNBMHNB", runFilter () chCQNBMHNB)
     , ("RWVTCOAU", runFilter () chRWVTCOAU)
     , ("AYTIGDAT", runFilter () chAYTIGDAT)

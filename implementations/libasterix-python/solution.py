@@ -163,6 +163,33 @@ class MVQCOXZJ(Filter):
         return self.dump([check_datablock(db) for db in dbs])
 
 
+class VNRPNTIV(Filter):
+    """make single record datablocks"""
+
+    def process(self, sample: str) -> str:
+        try:
+            bs = binascii.unhexlify(sample)
+        except (binascii.Error):
+            return self.dump(None)
+        dbs = RawDatablock.parse(Bits.from_bytes(bs))
+        if isinstance(dbs, ValueError):
+            return sample
+
+        def handle_datablock(db: Any) -> str:
+            cat = db.get_category()
+            orig = db.unparse().to_bytes().hex()
+            Spec = specs.get(cat)
+            if Spec is None:
+                return orig # type: ignore
+            result = Spec.cv_uap.parse(db.get_raw_records())  # type: ignore
+            if isinstance(result, ValueError):
+                return orig # type: ignore
+            dbs2 = [Spec.create([r]) for r in result] # type: ignore
+            return ''.join([x.unparse().to_bytes().hex() for x in dbs2])
+
+        return ''.join([handle_datablock(db) for db in dbs])
+
+
 class CQNBMHNB(Filter):
     """asterix record item extraction to json"""
 

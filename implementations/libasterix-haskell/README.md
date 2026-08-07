@@ -6,17 +6,21 @@ nix-shell
 # monitor with ghcid
 ghcid --no-title --lint "--command=ghci -Wall solution.hs"
 
+challenge={some-challenge-id}
+gen=../../bin/testing-framework.py
+
 # run examples (interpreted)
 runhaskell solution.hs manifest
-cat ../../samples.txt | runhaskell solution.hs run {challenge-id}
+
+$gen samples $challenge | runhaskell solution.hs run $challenge
 
 # run examples (compiled)
 ghc -O2 solution.hs
-cat ../../samples.txt | ./solution run {challenge-id}
+$gen samples $challenge | ./solution run $challenge
 
 # experiments with threading and threadscope
 ghc -O2 -threaded -rtsopts solution.hs
-cat ../../samples.txt | ./solution run {challenge-id} +RTS -N -l
+$gen samples $challenge | ./solution run $challenge +RTS -N -l
 threadscope solution.eventlog
 
 exit # out of nix-shell

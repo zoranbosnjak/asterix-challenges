@@ -3,12 +3,16 @@
 ```bash
 nix-shell
 
-# monitor with mypy
+# monitor code warnings with mypy
 find . | grep "\.py$" | entr sh -c 'clear && date && mypy'
 
 # run examples
+
+challenge={some-challenge-id}
+gen=../../bin/testing-framework.py
+
 ./solution.py manifest
-cat ../../samples.txt | ./solution.py run WJLXIXEB
+$gen samples $challenge | ./solution.py run $challenge
 
 exit # out of nix-shell
 ```
