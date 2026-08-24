@@ -178,7 +178,7 @@ challenge=WJLXIXEB
 # run simple benchmark test
 ./bin/testing-framework.py --seed 0 \
     --impl "./implementations/libasterix-python/run.sh" \
-    --impl "./implementations/libasterix-haskell/run-compiled.sh" \
+    --impl "./implementations/libasterix-haskell/run.sh" \
     benchmark
 ```
 

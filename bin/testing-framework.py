@@ -423,15 +423,17 @@ def cmd_benchmark(seed: int, args: Any) -> None:
         for i in range(args.samples):
             line = rnd.sample().strip()
             time_required = check_sample(seed, list(implementations.values()), line)
+        best_result = min([i.accumulated_time for i in implementations.values()])
         for ix in implementations:
             i = implementations[ix]
             dt = i.accumulated_time
             totals[ix] += dt
-            print('{:.6f}s'.format(dt))
+            print('{:.6f}s ({:.1f})'.format(dt, dt / best_result))
 
     print('--- totals ---')
+    best_total = min(totals.values())
     for dt in totals.values():
-        print('{:.6f}s'.format(dt))
+        print('{:.6f}s ({:.1f})'.format(dt, dt/best_total))
 
 parser = argparse.ArgumentParser(prog='asterix-challange-runner')
 
@@ -480,7 +482,7 @@ parser_benchmark = subparsers.add_parser('benchmark',
 parser_benchmark.set_defaults(func=cmd_benchmark)
 parser_benchmark.add_argument('challenges', nargs='*', default=[],
     help='challenge selection or all if not spcified')
-parser_benchmark.add_argument('-n', '--samples', type=int, default=100_000,
+parser_benchmark.add_argument('-n', '--samples', type=int, default=1000,
     metavar='INT',
     help='Number of samples, before switching to the next test (default: %(default)s)')
 
