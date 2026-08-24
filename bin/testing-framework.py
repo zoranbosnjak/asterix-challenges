@@ -394,6 +394,45 @@ def cmd_autorun(seed: int, args: Any) -> None:
                      for dt in time_required]
                 print(i+1, s)
 
+def cmd_benchmark(seed: int, args: Any) -> None:
+    names = args.challenges
+    if not names:
+        names = list(all_challenges.keys())
+    try:
+        challenges= {name: all_challenges[name] for name in names}
+    except KeyError:
+        print('Challenge not implemented!')
+        print('To reproduce, use seed value:', seed)
+        sys.exit(1)
+
+    if not args.impl:
+        print('Some implementation argument is required')
+        print('To reproduce, use seed value:', seed)
+        sys.exit(1)
+
+    totals = {i: 0.0 for i in args.impl}
+
+    for name in list(challenges.keys()):
+        Rnd = challenges[name]
+        rnd = Rnd(seed, args.error)
+        print('running:', name)
+        # forget about previous run and force deleting objects
+        implementations = []
+        gc.collect()
+        implementations = {i: Implementation(name, i) for i in args.impl}
+        for i in range(args.samples):
+            line = rnd.sample().strip()
+            time_required = check_sample(seed, list(implementations.values()), line)
+        for ix in implementations:
+            i = implementations[ix]
+            dt = i.accumulated_time
+            totals[ix] += dt
+            print('{:.6f}s'.format(dt))
+
+    print('--- totals ---')
+    for dt in totals.values():
+        print('{:.6f}s'.format(dt))
+
 parser = argparse.ArgumentParser(prog='asterix-challange-runner')
 
 parser.add_argument('--seed', help='Random generator seed value',
@@ -433,6 +472,15 @@ parser_autorun.set_defaults(func=cmd_autorun)
 parser_autorun.add_argument('challenges', nargs='*', default=[],
     help='challenge selection or all if not spcified')
 parser_autorun.add_argument('-n', '--samples', type=int, default=100_000,
+    metavar='INT',
+    help='Number of samples, before switching to the next test (default: %(default)s)')
+
+parser_benchmark = subparsers.add_parser('benchmark',
+                                        help='run simple benchmarking tests')
+parser_benchmark.set_defaults(func=cmd_benchmark)
+parser_benchmark.add_argument('challenges', nargs='*', default=[],
+    help='challenge selection or all if not spcified')
+parser_benchmark.add_argument('-n', '--samples', type=int, default=100_000,
     metavar='INT',
     help='Number of samples, before switching to the next test (default: %(default)s)')
 
